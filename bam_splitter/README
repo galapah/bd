@@ -1,0 +1,7 @@
+==Installation==
+===Python===
+====pysam====
+conda config --add channels r
+conda config --add channels bioconda
+conda install pysam
+
