@@ -18,6 +18,7 @@ OUTPUT_DIR="./"
 NR_LINES_PRINT=1000000
 READ_ID_NR_CHARS_TO_IGNORE=21
 OUTPUT_FILE_TAGS_TAB=".tags_tab.csv"
+DB_FILENAME=".bamsplitter.db"
 
 ## process arguments
 while getopts "hi:d:" opt; do
@@ -68,21 +69,29 @@ export LC_ALL=C
 
 ## initialize output file
 OUTPUT_FILE_TAGS_TAB="${OUTPUT_DIR}/${OUTPUT_FILE_TAGS_TAB}"
+DB_FILENAME="${OUTPUT_DIR}/${DB_FILENAME}"
 echo -e "cell_ID\tsample_tag" > ${OUTPUT_FILE_TAGS_TAB}
 
 cd ${OUTPUT_DIR}
+conda activate bamsplitter
+
 ## go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
 ##  and extract read_id, cell_id and sample_name
-samtools view ${INPUT_BAM} | grep ".*CN:Z:T.*" | mawk -f ${WORK_DIR}/extract_fields.mawk | \
+samtools view ${INPUT_BAM} | cut -c ${READ_ID_NR_CHARS_TO_IGNORE}- | grep ".*CN:Z:T.*" | \
+	mawk -f ${WORK_DIR}/extract_fields.mawk | ${WORK_DIR}/read_keeper.py create ${DB_FILENAME} | \
 	## pass the output to three commands in parallel:
         ## 1) extract cell_id and sample_name and collapse repetitive entries
 	## 2) extract read_id (ignore leading characters common to all reads)
 	##      and cell_id
-	tee >(mawk '{print $2,$3;}' | sort -k1,2 | uniq -c > "${OUTPUT_FILE_TAGS_TAB}" ) \
-	>(mawk -v nr_chars_ignore=${READ_ID_NR_CHARS_TO_IGNORE} \
-	  '{print substr($1, (nr_chars_ignore+1) ), $2;}' | ${WORK_DIR}/store_read_ids.py ) | \
  	## 3) show progress on the STDOUT \
 	LC_ALL=en_US.UTF-8 awk -v line_counter=${NR_LINES_PRINT} \
-	  '{if (NR % line_counter == 0) printf("%'"'"'d lines processed\n", NR)} \
+	   '{if (NR % line_counter == 0) printf("%'"'"'d reads collected\n", NR)} \
 	      END {printf("%'"'"'d lines processed\n", NR) }'
+
+echo "Processing the DB..."
+echo "process" | ${WORK_DIR}/read_keeper.py
+
+
+#read fastqs... | cat <(echo "retrieve ") - | ${WORK_DIR}/read_keeper.py
+echo "retrieve" | ${WORK_DIR}/read_keeper.py -1 fff -2 ggg
 
