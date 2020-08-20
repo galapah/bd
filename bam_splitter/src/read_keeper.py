@@ -2,6 +2,7 @@
 
 import os, sys
 import sqlite3
+import gzip
 #from Bio import SeqIO
 
 DB_FILENAME = ".bamsplitter.db"
@@ -125,17 +126,48 @@ class SQLReadKeeper(ReadKeeper):
     def close(self):
         self.connection.close()
 
+output_files = {}
+
+def open_new_files(sample, out_dir):
+    out_file1 = gzip.open(out_dir + "/" + sample + "_reads1.fastq.gz", 'wt', encoding="ascii")
+    out_file2 = gzip.open(out_dir + "/" + sample + "_reads2.fastq.gz", 'wt', encoding="ascii")
+    output_files[sample] = (out_file1, out_file2)
+
+def get_output_files(read, out_dir):
+    #todo identify the sample from the db and read id
+    sample = "06"
+    if sample not in output_files:
+        open_new_files(sample, out_dir)
+    return(output_files[sample])
+
+def close_output_files():
+    for (of1, of2) in output_files.values():
+        of1.close()
+        of2.close()
+
+def test(reads1_file, reads2_file, out_dir):
+    #print(os.environ['CONDA_DEFAULT_ENV'])
+    #_ = os.system("conda env list | grep '*'")
+
+    read1, read2 = None, None
+    with gzip.open(reads1_file, 'rt', encoding="ascii") as f1, gzip.open(reads2_file, 'rt', encoding="ascii") as f2:
+        for r1_line, r2_line in zip(f1, f2):
+            read = r1_line
+            ofile1, ofile2 = get_output_files(read, out_dir)
+            ofile1.write(r1_line)
+            ofile2.write(r2_line)
+    close_output_files()
 
 def retrieve(db_file, reads1_file, reads2_file, read_id_leading_chars_ignore):
-    import gzip
-    import os
     #print(os.environ['CONDA_DEFAULT_ENV'])
     #_ = os.system("conda env list | grep '*'")
     storage = SQLReadKeeper(db_file)
     reads_buffer = dict()
 
     read1, read2 = None, None
-    with gzip.open(reads1_file, 'rt') as f1, gzip.open(reads2_file, 'rt') as f2:
+    with (gzip.open(reads1_file, 'rt', encoding="ascii") as f1, 
+            gzip.open(reads2_file, 'rt', encoding="ascii") as f2):
+
         for r1_line, r2_line in zip(f1, f2):
             if r1_line.startswith("@"):
                 if read1 is None: ## starting the first read in the file
@@ -207,7 +239,7 @@ def process_db(db_file):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('cmd', help='command to execute', choices=['build', 'process', 'read'])
+    parser.add_argument('cmd', help='command to execute', choices=['build', 'process', 'read', "test"])
     parser.add_argument('db_file', help='path to the database filename')
     parser.add_argument('-1', help='path to reads1 fastq file')
     parser.add_argument('-2', help='path to reads2 fastq file')
@@ -223,6 +255,8 @@ if __name__ == "__main__":
         process_db(db_file)
     elif cmd == "read":
         retrieve(db_file, args["1"], args["2"], int(args["i"]))
+    elif cmd =="test":
+        test(args["1"], args["2"], "./")
     else:
         raise Exception("ERROR: unknown command provided: ", cmd)
     sys.exit()
