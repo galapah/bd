@@ -6,22 +6,19 @@
 
 ## TO RUN:
 # this script:
+# ./collect_reads_info.sh -i ../bam/test_bams/test_1000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
 #  time ./collect_reads_info.sh -i bam/original/Combined_A_EKDL200001649-1a_H33W7DSXY_final.BAM -d output
 # checking the current size of the output+tmp directory
 #   while true; do du -sh /mnt/documents/output/.tmp ; sleep 60; done
 
 INPUT_BAM=""
-INPUT_FASTQ_R1=""
-INPUT_FASTQ_R2=""
 OUTPUT_DIR="./"
-#NR_LINES_PRINT=100
 NR_LINES_PRINT=1000000
 READ_ID_NR_CHARS_TO_IGNORE=21
-OUTPUT_FILE_TAGS_TAB=".tags_tab.csv"
 DB_FILENAME=".bamsplitter.db"
 
 ## process arguments
-while getopts "hi:d:" opt; do
+while getopts "hi:d:1:2:" opt; do
   case ${opt} in
     d )
       OUTPUT_DIR=${OPTARG}
@@ -29,9 +26,15 @@ while getopts "hi:d:" opt; do
     i )
       INPUT_BAM=${OPTARG}
       ;;
+    1 )
+      INPUT_FASTQ_R1=${OPTARG}
+      ;;
+    2 )
+      INPUT_FASTQ_R2=${OPTARG}
+      ;;
     h )
-      echo "Usage: ./collect_reads_info.sh -i PATH_TO_BAM_FILE [-d OUTPUT_DIRECTORY]"
-      echo "  EXAMPLE: ./collect_reads_info.sh -i bam_folder/Combined_BD-Demo-WTA-SMK_final.BAM -d results"
+      echo "Usage: ./collect_reads_info.sh -i PATH_TO_BAM_FILE -1 PATH_TO_FASTQ_R1 -2 PATH_TO_FASTQ_R1 [-d OUTPUT_DIRECTORY]"
+      echo "  EXAMPLE: ./collect_reads_info.sh -i bam_folder/Combined_BD-Demo-WTA-SMK_final.BAM -1 fastq/reads1.fastq.gz -2 fastq/reads2.fastq.gz -d results"
       echo "    collect_reads_info.sh -h                  Display this help message."
       exit 0
       ;;
@@ -67,18 +70,17 @@ export TMPDIR=${NEW_TEMP}
 ## interpret all characters as ANSI, speeds the run up
 export LC_ALL=C
 
-## initialize output file
-OUTPUT_FILE_TAGS_TAB="${OUTPUT_DIR}/${OUTPUT_FILE_TAGS_TAB}"
 DB_FILENAME="${OUTPUT_DIR}/${DB_FILENAME}"
-echo -e "cell_ID\tsample_tag" > ${OUTPUT_FILE_TAGS_TAB}
 
 cd ${OUTPUT_DIR}
+eval "$(conda shell.bash hook)"
 conda activate bamsplitter
 
+echo "Collecting information about the reads..."
 ## go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
 ##  and extract read_id, cell_id and sample_name
-samtools view ${INPUT_BAM} | cut -c ${READ_ID_NR_CHARS_TO_IGNORE}- | grep ".*CN:Z:T.*" | \
-	mawk -f ${WORK_DIR}/extract_fields.mawk | ${WORK_DIR}/read_keeper.py create ${DB_FILENAME} | \
+samtools view ${INPUT_BAM} | cut -c $((${READ_ID_NR_CHARS_TO_IGNORE}+1))- | grep ".*CN:Z:T.*" | \
+	mawk -f ${WORK_DIR}/extract_fields.mawk | tee >( ${WORK_DIR}/main.py build ${DB_FILENAME} ) | \
 	## pass the output to three commands in parallel:
         ## 1) extract cell_id and sample_name and collapse repetitive entries
 	## 2) extract read_id (ignore leading characters common to all reads)
@@ -86,12 +88,16 @@ samtools view ${INPUT_BAM} | cut -c ${READ_ID_NR_CHARS_TO_IGNORE}- | grep ".*CN:
  	## 3) show progress on the STDOUT \
 	LC_ALL=en_US.UTF-8 awk -v line_counter=${NR_LINES_PRINT} \
 	   '{if (NR % line_counter == 0) printf("%'"'"'d reads collected\n", NR)} \
-	      END {printf("%'"'"'d lines processed\n", NR) }'
-
-echo "Processing the DB..."
-echo "process" | ${WORK_DIR}/read_keeper.py
+	      END {printf("%'"'"'d reads collected\n", NR) }'
 
 
-#read fastqs... | cat <(echo "retrieve ") - | ${WORK_DIR}/read_keeper.py
-echo "retrieve" | ${WORK_DIR}/read_keeper.py -1 fff -2 ggg
+echo "Processing the DB - deciding on the sample partitioning..."
+${WORK_DIR}/main.py -i ${READ_ID_NR_CHARS_TO_IGNORE} "process" ${DB_FILENAME}
+
+echo "Splitting the file..."
+${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -i ${READ_ID_NR_CHARS_TO_IGNORE} "read" ${DB_FILENAME}
+
+echo "DONE"
+
+rm -R ${NEW_TEMP}
 
