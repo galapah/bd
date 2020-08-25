@@ -1,0 +1,18 @@
+https://blog.devart.com/increasing-sqlite-performance.html
+
+PRAGMA JOURNAL_MODE = off
+PRAGMA SYNCHRONOUS
+PRAGMA LOCKING_MODE
+
+
+c.execute('''PRAGMA synchronous = EXTRA''')
+c.execute('''PRAGMA journal_mode = WAL''')
+
+self.cursor.execute("PRAGMA synchronous = OFF")
+self.cursor.execute("PRAGMA journal_mode = OFF")
+self.cursor.execute("PRAGMA LOCKING_MODE = EXCLUSIVE")
+EXCLUSIVE
+
+use PyPe3: https://stackoverflow.com/questions/52142645/how-to-improve-sqlite-insert-performance-in-python-3-6
+
+faster library: https://stackoverflow.com/questions/10412604/how-can-i-speed-up-fetching-the-results-after-running-an-sqlite-query

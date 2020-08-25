@@ -11,11 +11,27 @@
 # checking the current size of the output+tmp directory
 #   while true; do du -sh /mnt/documents/output/.tmp ; sleep 60; done
 
+function ignore_read_id_prefix
+{
+	IFILE=$1
+	FIRST_ID=`samtools view $IFILE | head -1 | cut -f1`
+	PREFIX=${FIRST_ID%[0-9]*:[0-9]*:[0-9]*:[0-9]*}
+	let READ_ID_NR_CHARS_TO_IGNORE=${#PREFIX}
+}
+
+function timestamp
+{
+  date +"%Y-%m-%d_%H:%M:%S"
+}
+
+## assign default values to variables
 INPUT_BAM=""
 OUTPUT_DIR="./"
 NR_LINES_PRINT=1000000
-READ_ID_NR_CHARS_TO_IGNORE=21
 DB_FILENAME=".bamsplitter.db"
+RECORDS_IN_BUFFER=10000000
+RECORDS_IN_BUFFER_FASTQ=1000
+
 
 ## process arguments
 while getopts "hi:d:1:2:" opt; do
@@ -56,10 +72,33 @@ if [[ -z $INPUT_BAM ]]; then
     exit 1
   fi
 
+
 WORK_DIR=`readlink -f ${PWD}`
 INPUT_BAM=`readlink -f ${INPUT_BAM}`
 OUTPUT_DIR=`readlink -f ${OUTPUT_DIR}`
 mkdir -p ${OUTPUT_DIR}
+
+if [ ! -f "$INPUT_BAM" ]; then
+    echo "The input file $INPUT_BAM does not exist."
+    exit 1
+fi
+if [ ! -f "$INPUT_FASTQ_R1" ]; then
+    echo "The input file $INPUT_FASTQ_R1 does not exist."
+    exit 1
+fi
+if [ ! -f "$INPUT_FASTQ_R2" ]; then
+    echo "The input file $INPUT_FASTQ_R2 does not exist."
+    exit 1
+fi
+
+echo "###########################################################################################"
+echo "BAM_FILE: ${INPUT_BAM}"
+echo "___________________________________________________________________________________________"
+
+## set the READ_ID_NR_CHARS_TO_IGNORE variable
+ignore_read_id_prefix ${INPUT_BAM}
+#exit 0
+
 
 ## make sure any temporary file created by the OS will be stored in our output directory too,
 ##  assuming we have plenty of disk space there...
@@ -76,28 +115,33 @@ cd ${OUTPUT_DIR}
 eval "$(conda shell.bash hook)"
 conda activate bamsplitter
 
-echo "Collecting information about the reads..."
-## go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
-##  and extract read_id, cell_id and sample_name
-samtools view ${INPUT_BAM} | cut -c $((${READ_ID_NR_CHARS_TO_IGNORE}+1))- | grep ".*CN:Z:T.*" | \
-	mawk -f ${WORK_DIR}/extract_fields.mawk | tee >( ${WORK_DIR}/main.py build ${DB_FILENAME} ) | \
-	## pass the output to three commands in parallel:
-        ## 1) extract cell_id and sample_name and collapse repetitive entries
-	## 2) extract read_id (ignore leading characters common to all reads)
-	##      and cell_id
- 	## 3) show progress on the STDOUT \
-	LC_ALL=en_US.UTF-8 awk -v line_counter=${NR_LINES_PRINT} \
-	   '{if (NR % line_counter == 0) printf("%'"'"'d reads collected\n", NR)} \
-	      END {printf("%'"'"'d reads collected\n", NR) }'
+#echo `timestamp` "Collecting information about the reads..."
+### go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
+###  and extract read_id, cell_id and sample_name
+#samtools view ${INPUT_BAM} | cut -c $((${READ_ID_NR_CHARS_TO_IGNORE}+1))- | grep ".*CN:Z:T.*" | \
+#	mawk -f ${WORK_DIR}/extract_fields.mawk | tee >( python -m cProfile -s cumtime ${WORK_DIR}/main.py -o ${OUTPUT_DIR} build ${DB_FILENAME} > run_log_extra.log 2>&1 ) | \
+#	## pass the output to three commands in parallel:
+#        ## 1) extract cell_id and sample_name and collapse repetitive entries
+#	## 2) extract read_id (ignore leading characters common to all reads)
+#	##      and cell_id
+# 	## 3) show progress on the STDOUT \
+#	LC_ALL=en_US.UTF-8 awk -v line_counter=${NR_LINES_PRINT} \
+#	   '{if (NR % line_counter == 0) printf("%s %'"'"'d reads collected\n", strftime("%Y-%m-%d_%H:%M:%S", systime()), NR )} \
+#	      END {printf("%s %'"'"'d reads collected\n", strftime("%Y-%m-%d_%H:%M:%S", systime()), NR) }'
 
+#exit 0
+#echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
+#
+#
+#echo `timestamp` "Processing the DB - deciding on the sample partitioning..."
+#python -m cProfile -s cumtime ${WORK_DIR}/main.py -i ${READ_ID_NR_CHARS_TO_IGNORE} -o ${OUTPUT_DIR} "process" ${DB_FILENAME}
+#echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 
-echo "Processing the DB - deciding on the sample partitioning..."
-${WORK_DIR}/main.py -i ${READ_ID_NR_CHARS_TO_IGNORE} "process" ${DB_FILENAME}
+echo `timestamp` "Splitting the file..."
+python -m cProfile -s cumtime ${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -i ${READ_ID_NR_CHARS_TO_IGNORE} -o ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
+echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 
-echo "Splitting the file..."
-${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -i ${READ_ID_NR_CHARS_TO_IGNORE} "read" ${DB_FILENAME}
-
-echo "DONE"
+echo `timestamp` "DONE"
 
 rm -R ${NEW_TEMP}
 
