@@ -67,7 +67,8 @@ class ReadProcessor:
         reads_buffer = dict()
     
         read1, read2 = None, None
-        with gzip.open(reads1_file, 'rb') as f1, gzip.open(reads2_file, 'rb') as f2:
+        #with gzip.open(reads1_file, 'rb') as f1, gzip.open(reads2_file, 'rb') as f2:
+        with open(reads1_file, 'rb') as f1, open(reads2_file, 'rb') as f2:
     
             for line_counter, (r1_line, r2_line) in enumerate(zip(f1, f2)):
                 if line_counter % 4 == 0:
@@ -124,7 +125,7 @@ class ReadProcessor:
             raise ReadProcessorException("Error while writing to the database.", e)
         else:
             self.storage.commit()
-            self.storage.create_indexes()
+            #self.storage.create_indexes()
         finally:
             self.storage.close()
     

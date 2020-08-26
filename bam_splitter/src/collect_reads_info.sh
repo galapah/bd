@@ -102,9 +102,9 @@ export LC_ALL=C
 
 DB_FILENAME="${OUTPUT_DIR}/${DB_FILENAME}"
 
-cd ${OUTPUT_DIR}
-eval "$(conda shell.bash hook)"
-conda activate bamsplitter
+#cd ${OUTPUT_DIR}
+#eval "$(conda shell.bash hook)"
+#conda activate bamsplitter
 
 #echo `timestamp` "	Collecting information about the reads..."
 ### go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
@@ -122,10 +122,52 @@ conda activate bamsplitter
 #echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 
 echo `timestamp` "	Splitting the file..."
-python -m cProfile -s cumtime ${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -d ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
+#python -m cProfile -s cumtime ${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -d ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
+${WORK_DIR}/main.py -1 <(gunzip -c ${INPUT_FASTQ_R1}) -2 <(gunzip -c ${INPUT_FASTQ_R2}) -d ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
 echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 
+
+function filename_to_sample
+{
+	echo $1 | sed "s/.*linelist_\(.*\).txt/\1/"
+}
+
+
+echo "perl split in sequence - BEGIN"
+date +"%s"
+linenum_files=`find ${OUTPUT_DIR} -name "linelist_*.txt"`
+for lnf in $linenum_files
+do
+	sample=`filename_to_sample $lnf`
+	${WORK_DIR}/linecp.perl $lnf ${INPUT_FASTQ_R1} | gzip -c > "${OUTPUT_DIR}/sample_${sample}_read1.fastq.gz"
+	${WORK_DIR}/linecp.perl $lnf ${INPUT_FASTQ_R2} | gzip -c > "${OUTPUT_DIR}/sample_${sample}_read2.fastq.gz"
+done
+date +"%s"
+echo "perl split in sequence - END"
+
+ls -lh ${OUTPUT_DIR}
+rm ${OUTPUT_DIR}/*.fastq.gz
+
+export filename_to_sample
+export WORK_DIR
+export INPUT_FASTQ_R1
+export INPUT_FASTQ_R2
+export OUTPUT_DIR
+echo "perl split in parallel - BEGIN"
+date +"%s"
+printf '%s\n' "${linenum_files[@]}" | parallel -j 4 --progress 'sample=`filename_to_sample {}`; ${WORK_DIR}/linecp.perl {} ${INPUT_FASTQ_R1} | gzip -c > "${OUTPUT_DIR}/sample_${sample}_read1.fastq.gz"'
+printf '%s\n' "${linenum_files[@]}" | parallel -j 4 --progress 'sample=`filename_to_sample {}`; ${WORK_DIR}/linecp.perl {} ${INPUT_FASTQ_R2} | gzip -c > "${OUTPUT_DIR}/sample_${sample}_read2.fastq.gz"'
+
+date +"%s"
+echo "perl split in parallel - END"
+
+
+ls -lh ${OUTPUT_DIR}
+rm ${OUTPUT_DIR}/*.fastq.gz
+
+
 echo `timestamp` "	DONE"
+
 
 rm -R ${NEW_TEMP}
 

@@ -19,7 +19,6 @@ unless (open(IN, "gunzip -c $ARGV[1] |")) {
 $. = 0;
 while (<IN>) {
 	print if defined $linenumbers{$.} || $linenumbers{$.-1} || $linenumbers{$.-2} || $linenumbers{$.-3};
-	#print if defined $linenumbers{$.};
 }
 
 exit;

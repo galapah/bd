@@ -1,6 +1,5 @@
 import os
 import sqlite3
-import apsw
 from datetime import datetime
 
 
