@@ -7,7 +7,6 @@ import sys
 import argparse
 from pybamsplit.read_processor import ReadProcessor
 
-#RECORDS_IN_BUFFER = 100000
 RECORDS_IN_BUFFER = 10000000 # ~ 2.7GB RAM
 RECORDS_IN_BUFFER_FASTQ = 100000
 minimumSampleAssociationThreshold = 0.75

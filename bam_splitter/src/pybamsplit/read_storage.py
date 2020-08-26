@@ -1,6 +1,5 @@
 import os
 import sqlite3
-import apsw
 from datetime import datetime
 
 
@@ -52,7 +51,8 @@ class SQLReadStorage:
         except Exception as e:
             raise DatabaseException("Error while initializing the database.", e)
         else:
-            self.commit()
+            #self.commit()
+            pass
 
     def create_indexes(self):
         self.cursor.execute("CREATE INDEX idx_reads_read_id ON reads(read_id);")
@@ -62,11 +62,11 @@ class SQLReadStorage:
 
     def process_data(self, threshold):
         self._init_connect()
-        print(f"{get_timestamp()}           Calculating stats on cells")
+        print(f"{get_timestamp()}           * Calculating stats on cells")
         self._calculate_stats_on_cells()
-        print(f"{get_timestamp()}           Assigning cells to samples")
+        print(f"{get_timestamp()}           * Assigning cells to samples")
         self._assign_cells_to_samples(threshold)
-        print(f"{get_timestamp()}           Creating the final table")
+        print(f"{get_timestamp()}           * Creating the association table")
         self._create_final_table()
 
     def _calculate_stats_on_cells(self):
@@ -82,7 +82,8 @@ class SQLReadStorage:
         except Exception as e:
             raise DatabaseException("Error while calculating statistics on cell IDs.", e)
         else:
-            self.commit()
+            #self.commit()
+            pass
     
     def _assign_cells_to_samples(self, threshold = 0.75):
         """
@@ -104,7 +105,8 @@ class SQLReadStorage:
         except Exception as e:
             raise DatabaseException("Error while calculating cell-sample relationships.", e)
         else:
-            self.commit()
+            #self.commit()
+            pass
 
     def cleanup(self):
         self._init_connect()
@@ -115,7 +117,8 @@ class SQLReadStorage:
         except Exception as e:
             raise DatabaseException("Error while deleting the database.", e)
         else:
-            self.commit()
+            #self.commit()
+            pass
 
     def _create_final_table(self):
         self._init_connect()
@@ -129,7 +132,8 @@ class SQLReadStorage:
         except Exception as e:
             raise DatabaseException("Error while assigning the dominant sample to cell IDs.", e)
         else:
-            self.commit()
+            #self.commit()
+            pass
 
     def get_multiple_read_sample_pairs(self, key_list):
         self._init_connect()
@@ -155,18 +159,19 @@ class SQLReadStorage:
     def store(self, records):
         try:
             self.cursor.executemany('INSERT INTO reads VALUES(?,?,?);', records);
-            self.commit()
+            #self.commit()
+            pass
         except Exception as e:
             raise DatabaseException("Error while inserting into the database.", e)
         records.clear()
 
     def commit(self):
         pass
-        #try:
-        #    #self.connection.commit()
-        #    self.cursor.execute("COMMIT;")
-        #except Exception as e:
-        #    raise DatabaseException("Error while committing changes to the database.", e)
+        try:
+            #self.connection.commit()
+            self.cursor.execute("COMMIT;")
+        except Exception as e:
+            raise DatabaseException("Error while committing changes to the database.", e)
 
     def close(self):
         if self.connection is not None:

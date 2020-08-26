@@ -8,8 +8,6 @@
 # this script:
 # ./collect_reads_info.sh -i ../bam/test_bams/test_1000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
 #  time ./collect_reads_info.sh -i bam/original/Combined_A_EKDL200001649-1a_H33W7DSXY_final.BAM -d output
-# checking the current size of the output+tmp directory
-#   while true; do du -sh /mnt/documents/output/.tmp ; sleep 60; done
 
 
 function timestamp
@@ -103,29 +101,27 @@ export LC_ALL=C
 DB_FILENAME="${OUTPUT_DIR}/${DB_FILENAME}"
 
 cd ${OUTPUT_DIR}
-eval "$(conda shell.bash hook)"
-conda activate bamsplitter
+#eval "$(conda shell.bash hook)"
+#conda activate bamsplitter
 
-#echo `timestamp` "	Collecting information about the reads..."
+echo `timestamp`"    Collecting information about the reads..."
 ### go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
 ###  and extract read_id, cell_id and sample_name
-#samtools view ${INPUT_BAM} | cut -c $((${READ_ID_NR_CHARS_TO_IGNORE}+1))- | grep ".*CN:Z:T.*" | \
-#	mawk -f ${WORK_DIR}/extract_fields.mawk | \
-#	  python -m cProfile -s cumtime ${WORK_DIR}/main.py -d ${OUTPUT_DIR} build ${DB_FILENAME}
+samtools view ${INPUT_BAM} | grep ".*CN:Z:T.*" | \
+	mawk -f ${WORK_DIR}/extract_fields.mawk | python3 -m cProfile -s cumtime ${WORK_DIR}/main.py -d ${OUTPUT_DIR} build ${DB_FILENAME}
 #
-##exit 0
+#exit 0
 #echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 #
 #
-#echo `timestamp` "	Processing the DB - deciding on the sample partitioning..."
-#python -m cProfile -s cumtime ${WORK_DIR}/main.py -d ${OUTPUT_DIR} "process" ${DB_FILENAME}
+echo `timestamp`"    Processing the DB - deciding on the sample partitioning..."
+python3 -m cProfile -s cumtime ${WORK_DIR}/main.py -d ${OUTPUT_DIR} "process" ${DB_FILENAME}
 #echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 
-echo `timestamp` "	Splitting the file..."
-python -m cProfile -s cumtime ${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -d ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
-echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
+echo `timestamp`"    Splitting the file..."
+python3 -m cProfile -s cumtime ${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -d ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
 
-echo `timestamp` "	DONE"
+echo `timestamp`"    DONE"
 
 rm -R ${NEW_TEMP}
 

@@ -1,6 +1,3 @@
-# ./main.py process ../output_test/.bamsplitter.db
-# ./main.py -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz "read" ../output_test/.bamsplitter.db
-
 import os, sys
 from collections import defaultdict
 import gzip
@@ -71,6 +68,15 @@ class ReadProcessor:
             of2.close()
     
     def retrieve(self, reads1_file, reads2_file, fastq_records_buffer_size):
+        try:
+            self._retrieve(reads1_file, reads2_file, fastq_records_buffer_size)
+        except Exception as e:
+            raise e
+        finally:
+            self.close_output_files()
+            self.cleanup()
+
+    def _retrieve(self, reads1_file, reads2_file, fastq_records_buffer_size):
         reads_buffer = dict()
     
         read1, read2 = None, None
@@ -106,14 +112,11 @@ class ReadProcessor:
                     read2.record += r2_line
             ## process last reads
             if line_counter > 0:
-                print(f"{get_timestamp()}   Read { '{:,}'.format(int(line_counter / 4) ) } reads altogether...")
+                print(f"{get_timestamp()}    Read { '{:,}'.format(int(line_counter / 4) ) } reads altogether...")
             if line_counter < 1:
                 raise ReadProcessorException("Input FASTQ file(s) is/are empty.")
             self._add_previous_read(reads_buffer, read1, read2)
             self._process_buffer(reads_buffer)
-            self.close_output_files()
-            print("WARNING: NEED TO CLEAN UP!!!")
-            #self.cleanup()
     
     def read_and_store(self, records_buffer_size):
         records = []
@@ -130,22 +133,24 @@ class ReadProcessor:
                     self.storage.store(records)
 
             print(f"{get_timestamp()}    { '{:,}'.format(line_counter) } reads collected.")
-            print("Saving reads to database.")
+            print(f"{get_timestamp()}    Saving reads to a temporary local database.")
             self.storage.store(records)
         except Exception as e:
             raise ReadProcessorException("Error while writing to the database.", e)
         else:
+            pass
             self.storage.commit()
-            self.storage.create_indexes()
+            #self.storage.create_indexes()
         finally:
             self.storage.close()
     
     def process_db(self):
         self.storage.process_data(self.minimumSampleAssociationThreshold)
-        self.storage.cleanup()
+        #self.storage.cleanup()
         self.storage.close()
 
     def cleanup(self):
+        print(f"{get_timestamp()}    Deleting temporary files.")
         self.storage.remove_db()
 
     def _save_read_sample_lines(self, reads_buffer, id_sample_pairs):
