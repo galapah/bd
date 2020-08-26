@@ -46,7 +46,6 @@ class ReadProcessor:
 
     storage = None
     read_sample_lines_dict = defaultdict(list)
-    output_files = {}
     out_dir = ""
     minimumSampleAssociationThreshold = None
 
@@ -55,21 +54,15 @@ class ReadProcessor:
         self.storage = SQLReadStorage(db_file)
         self.minimumSampleAssociationThreshold = threshold
 
-    def open_new_files(self, sample):
-        out_file1 = gzip.open(self.out_dir + "/" + sample + "_reads1.fastq.gz", 'wb')
-        out_file2 = gzip.open(self.out_dir + "/" + sample + "_reads2.fastq.gz", 'wb')
-        self.output_files[sample] = (out_file1, out_file2)
-    
-    def get_output_files(self, sample):
-        if sample not in self.output_files:
-            self.open_new_files(sample)
-        return(self.output_files[sample])
-    
-    def close_output_files(self):
-        for (of1, of2) in self.output_files.values():
-            of1.close()
-            of2.close()
-    
+    def _create_read_pair(self, line_counter, r1_line, r2_line):
+        read1, read2 = SeqRead(line_counter, r1_line), SeqRead(line_counter, r2_line)
+        if read1.id != read2.id:
+            raise ReadProcessorException(
+                f"""ERROR: The fastq files are not organized in the same 
+                       order, line {str(line_counter)}, read1 ID: {read1.id.decode("ascii")}, 
+                       read2 ID: {read2.id.decode("ascii")}.""")
+        return(read1, read2)
+
     def retrieve(self, reads1_file, reads2_file, fastq_records_buffer_size):
         reads_buffer = dict()
     
@@ -80,17 +73,12 @@ class ReadProcessor:
                 if line_counter % 4 == 0:
                     try:
                         if read1 is None: ## starting the first read in the file
-                            read1, read2 = SeqRead(line_counter, r1_line), SeqRead(line_counter, r2_line)
-                            if read1.id != read2.id:
-                                raise ReadProcessorException(
-                                    f"""ERROR: The fastq files are not organized in the same 
-                                        order, line {str(line_counter)}, read1 ID: {read1.id.decode("ascii")}, 
-                                        read2 ID: {read2.id.decode("ascii")}.""")
+                            read1, read2 = self._create_read_pair(line_counter, r1_line, r2_line)
                         else: ## starting a new read, process the previous one
-                            self._add_previous_read(reads_buffer, read1, read2)
+                            self._add_previous_read(reads_buffer, read1)
                             if len(reads_buffer) >= fastq_records_buffer_size:
                                 self._process_buffer(reads_buffer)
-                            read1, read2 = SeqRead(line_counter, r1_line), SeqRead(line_counter, r2_line)
+                            read1, read2 = self._create_read_pair(line_counter, r1_line, r2_line)
                     except NotReadIDException:
                         raise ReadProcessorException(
                             f"""ERROR: Problem encountered while reading the FASTQ files,
@@ -101,17 +89,17 @@ class ReadProcessor:
                     if (line_counter / 4) % LINE_NR_PRINT == 0 and line_counter > 0:
                         print(f"{get_timestamp()}   Reading read nr. { '{:,}'.format(int(line_counter / 4) ) }...")
 
-                else: # add to the current read
-                    read1.record += r1_line
-                    read2.record += r2_line
+                else: # skip the rest of the read record
+                    continue
+
             ## process last reads
-            if line_counter > 0:
-                print(f"{get_timestamp()}   Read { '{:,}'.format(int(line_counter / 4) ) } reads altogether...")
             if line_counter < 1:
                 raise ReadProcessorException("Input FASTQ file(s) is/are empty.")
-            self._add_previous_read(reads_buffer, read1, read2)
+            else:
+                print(f"{get_timestamp()}   Read { '{:,}'.format(int(line_counter / 4) ) } reads altogether...")
+            self._add_previous_read(reads_buffer, read1)
             self._process_buffer(reads_buffer)
-            self.close_output_files()
+            self._write_read_sample_lines(reads1_file)
             print("WARNING: NEED TO CLEAN UP!!!")
             #self.cleanup()
     
@@ -149,55 +137,32 @@ class ReadProcessor:
         self.storage.remove_db()
 
     def _save_read_sample_lines(self, reads_buffer, id_sample_pairs):
-        for read_id in reads_buffer.keys():
+        def get_sample(read_id):
             sample = "UNDETERMINED"
             if read_id in id_sample_pairs:
                 sample = id_sample_pairs[read_id]
-                line_num = reads_buffer[read_id][0].line_num
-            self.read_sample_lines_dict[sample].append(line_num)
+            return(sample)
+        for read_id, read in reads_buffer.items():
+            self.read_sample_lines_dict[get_sample(read_id)].append(read.line_num)
+        #tuples = [ (get_sample(read_id), read.line_num) for read_id, read in reads_buffer ]
 
-    def _write_read_sample_lines(self):
+    def _write_read_sample_lines(self, reads1_file):
+        file_name = os.path.basename(reads1_file)
         for sample in self.read_sample_lines_dict.keys():
-            block_to_write = "\n".join([ str(line_num+1) for line_num in self.read_sample_lines_dict[sample] ])
-            ofile = self._get_output_file(sample)
-            ofile.write(block_to_write)
-            ofile.close()
+            block_to_write = b"\n".join([ b'%d' % (line_num+1) for line_num in self.read_sample_lines_dict[sample] ])
+            with open(self.out_dir + "/linelist_" + sample + ".txt", 'wb') as ofile:
+                ofile.write(block_to_write)
 
-    def _write_reads(self, reads_buffer, id_sample_pairs):
-        reads_to_write = {1: defaultdict(list), 2: defaultdict(list)}
-
-        for read_id in reads_buffer.keys():
-            read1, read2 = reads_buffer[read_id]
-            sample = "UNDETERMINED"
-            if read_id in id_sample_pairs:
-                sample = id_sample_pairs[read_id]
-            reads_to_write[1][sample].append(read1.record)
-            reads_to_write[2][sample].append(read2.record)
-
-        blocks_to_write = {}
-        blocks_to_write[1] = { key : b"".join(val) for key, val in reads_to_write[1].items() }
-        blocks_to_write[2] = { key : b"".join(val) for key, val in reads_to_write[2].items() }
-        
-        for sample in blocks_to_write[1].keys():
-            ofile1, ofile2 = self.get_output_files(sample)
-            ofile1.write(blocks_to_write[1][sample])
-            ofile2.write(blocks_to_write[2][sample])
-
-    def _add_previous_read(self, reads_buffer, read1, read2):
-        cropped_id = read1.cid
-        reads_buffer[cropped_id] = (read1, read2)
+    def _add_previous_read(self, reads_buffer, read):
+        cropped_id = read.cid
+        reads_buffer[cropped_id] = read
 
     def _process_buffer(self, reads_buffer):
         keys = reads_buffer.keys()
         id_sample_pairs = self.storage.get_multiple_read_sample_pairs(keys)
-        self._write_reads(reads_buffer, id_sample_pairs)
+        self._save_read_sample_lines(reads_buffer, id_sample_pairs)
         reads_buffer.clear()
         
-    def _new_read(self, r1_line, r2_line):
-        read1_id = r1_line.split()[0][1:]
-        read2_id = r2_line.split()[0][1:]
-        return (read1_id, read2_id)
-                
     def _store(self, line, records):
         read_id, cell_id, sample_name = line.split()
         if sample_name == "x":

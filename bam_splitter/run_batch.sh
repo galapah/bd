@@ -1,26 +1,61 @@
 #!/bin/bash
 
-script ../run2.log
+function clean_out_dir
+{
+	rm -f ${OUTPUT_DIR}/*.fastq.gz
+	rm -f ${OUTPUT_DIR}/.bamsplitter.db
+}
 
-rm -R ../output_test/
-./collect_reads_info.sh -i ../bam/test_bams/test_1000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
+OUTPUT_DIR="/mnt/documents/demoproj2/output_dir/"
+LOGFILE="/mnt/documents/demoproj2/run"
 
-rm -R ../output_test/
-./collect_reads_info.sh -i ../bam/test_bams/test_10000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
+exec > ${LOGFILE}.minifq.log 2>&1
+set -x
 
-rm -R ../output_test/
-./collect_reads_info.sh -i ../bam/test_bams/test_100000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
+clean_out_dir
+INPUT_BAM="/mnt/documents/demoproj2/bam/test_1mil.bam"
+FASTQ1="/mnt/documents/demoproj2/bam/thousand_read1.fastq.gz"
+FASTQ2="/mnt/documents/demoproj2/bam/thousand_read2.fastq.gz"
+./collect_reads_info.sh -i ${INPUT_BAM} -d ${OUTPUT_DIR} -1 ${FASTQ1} -2 ${FASTQ2}
 
-rm -R ../output_test/
-./collect_reads_info.sh -i ../bam/test_bams/test_1000000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
+clean_out_dir
+INPUT_BAM="/mnt/documents/demoproj2/bam/demo.bam"
+FASTQ1="/mnt/documents/demoproj2/bam/thousand_read1.fastq.gz"
+FASTQ2="/mnt/documents/demoproj2/bam/thousand_read2.fastq.gz"
+./collect_reads_info.sh -i ${INPUT_BAM} -d ${OUTPUT_DIR} -1 ${FASTQ1} -2 ${FASTQ2}
 
-rm -R ../output_test/
-./collect_reads_info.sh -i ../bam/test_bams/test_10000000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
 
 
-script /mnt/documents/demoproj/real_test_demodata__db-optim_cover-idx+real_pragma.log
-rm /mnt/documents/demoproj/output_test/*.fastq.gz
-./collect_reads_info.sh -i /mnt/documents/demoproj/demo.bam -d /mnt/documents/demoproj/output_test -1 /mnt/documents/demoproj/demo_read1.fastq.gz -2 /mnt/documents/demoproj/demo_read2.fastq.gz
 
-exit
+
+exec > ${LOGFILE}.minibam.log 2>&1
+set -x
+
+clean_out_dir
+INPUT_BAM="/mnt/documents/demoproj2/bam/test_1mil.bam"
+FASTQ1="/mnt/documents/demoproj2/bam/million_read1.fastq.gz"
+FASTQ2="/mnt/documents/demoproj2/bam/million_read1.fastq.gz"
+./collect_reads_info.sh -i ${INPUT_BAM} -d ${OUTPUT_DIR} -1 ${FASTQ1} -2 ${FASTQ2}
+
+clean_out_dir
+INPUT_BAM="/mnt/documents/demoproj2/bam/test_1mil.bam"
+FASTQ1="/mnt/documents/demoproj2/bam/hmillion_read1.fastq.gz"
+FASTQ2="/mnt/documents/demoproj2/bam/hmillion_read1.fastq.gz"
+./collect_reads_info.sh -i ${INPUT_BAM} -d ${OUTPUT_DIR} -1 ${FASTQ1} -2 ${FASTQ2}
+
+clean_out_dir
+INPUT_BAM="/mnt/documents/demoproj2/bam/test_1mil.bam"
+FASTQ1="/mnt/documents/demoproj2/bam/orig/demo_read1.fastq.gz"
+FASTQ2="/mnt/documents/demoproj2/bam/orig/demo_read2.fastq.gz"
+./collect_reads_info.sh -i ${INPUT_BAM} -d ${OUTPUT_DIR} -1 ${FASTQ1} -2 ${FASTQ2}
+
+
+
+#clean_out_dir
+#INPUT_BAM="/mnt/documents/demoproj2/bam/test_1mil.bam"
+#FASTQ1="/mnt/documents/demoproj2/bam/hmillion_read1.fastq.gz"
+#FASTQ2="/mnt/documents/demoproj2/bam/hmillion_read1.fastq.gz"
+#./collect_reads_info.sh -i ${INPUT_BAM} -d ${OUTPUT_DIR} -1 ${FASTQ1} -2 ${FASTQ2}
+
+
 
