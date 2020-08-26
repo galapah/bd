@@ -11,13 +11,6 @@
 # checking the current size of the output+tmp directory
 #   while true; do du -sh /mnt/documents/output/.tmp ; sleep 60; done
 
-function ignore_read_id_prefix
-{
-	IFILE=$1
-	FIRST_ID=`samtools view $IFILE | head -1 | cut -f1`
-	PREFIX=${FIRST_ID%[0-9]*:[0-9]*:[0-9]*:[0-9]*}
-	let READ_ID_NR_CHARS_TO_IGNORE=${#PREFIX}
-}
 
 function timestamp
 {
@@ -95,8 +88,6 @@ echo "##########################################################################
 echo "BAM_FILE: ${INPUT_BAM}"
 echo "___________________________________________________________________________________________"
 
-## set the READ_ID_NR_CHARS_TO_IGNORE variable
-ignore_read_id_prefix ${INPUT_BAM}
 #exit 0
 
 
@@ -115,33 +106,26 @@ cd ${OUTPUT_DIR}
 eval "$(conda shell.bash hook)"
 conda activate bamsplitter
 
-#echo `timestamp` "Collecting information about the reads..."
+#echo `timestamp` "	Collecting information about the reads..."
 ### go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
 ###  and extract read_id, cell_id and sample_name
 #samtools view ${INPUT_BAM} | cut -c $((${READ_ID_NR_CHARS_TO_IGNORE}+1))- | grep ".*CN:Z:T.*" | \
-#	mawk -f ${WORK_DIR}/extract_fields.mawk | tee >( python -m cProfile -s cumtime ${WORK_DIR}/main.py -o ${OUTPUT_DIR} build ${DB_FILENAME} > run_log_extra.log 2>&1 ) | \
-#	## pass the output to three commands in parallel:
-#        ## 1) extract cell_id and sample_name and collapse repetitive entries
-#	## 2) extract read_id (ignore leading characters common to all reads)
-#	##      and cell_id
-# 	## 3) show progress on the STDOUT \
-#	LC_ALL=en_US.UTF-8 awk -v line_counter=${NR_LINES_PRINT} \
-#	   '{if (NR % line_counter == 0) printf("%s %'"'"'d reads collected\n", strftime("%Y-%m-%d_%H:%M:%S", systime()), NR )} \
-#	      END {printf("%s %'"'"'d reads collected\n", strftime("%Y-%m-%d_%H:%M:%S", systime()), NR) }'
-
-#exit 0
+#	mawk -f ${WORK_DIR}/extract_fields.mawk | \
+#	  python -m cProfile -s cumtime ${WORK_DIR}/main.py -d ${OUTPUT_DIR} build ${DB_FILENAME}
+#
+##exit 0
 #echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 #
 #
-#echo `timestamp` "Processing the DB - deciding on the sample partitioning..."
-#python -m cProfile -s cumtime ${WORK_DIR}/main.py -i ${READ_ID_NR_CHARS_TO_IGNORE} -o ${OUTPUT_DIR} "process" ${DB_FILENAME}
+#echo `timestamp` "	Processing the DB - deciding on the sample partitioning..."
+#python -m cProfile -s cumtime ${WORK_DIR}/main.py -d ${OUTPUT_DIR} "process" ${DB_FILENAME}
 #echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 
-echo `timestamp` "Splitting the file..."
-python -m cProfile -s cumtime ${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -i ${READ_ID_NR_CHARS_TO_IGNORE} -o ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
+echo `timestamp` "	Splitting the file..."
+python -m cProfile -s cumtime ${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -d ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
 echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 
-echo `timestamp` "DONE"
+echo `timestamp` "	DONE"
 
 rm -R ${NEW_TEMP}
 

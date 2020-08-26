@@ -1,4 +1,6 @@
-import os, sqlite3
+import os
+import sqlite3
+import apsw
 from datetime import datetime
 
 
@@ -23,6 +25,7 @@ class SQLReadStorage:
         if self.connection is None:
             try:
                 self.connection = sqlite3.connect(self.db_file_name)
+                #self.connection = apsw.Connection(self.db_file_name)
                 self.cursor = self.connection.cursor()
                 self.cursor.execute("PRAGMA synchronous = OFF;")
                 self.cursor.execute("PRAGMA journal_mode = OFF;")
@@ -38,25 +41,32 @@ class SQLReadStorage:
         self._init_connect()
         # Create table
         try:
-            self.cursor.execute("""CREATE TABLE reads ( read_id text PRIMARY_KEY, 
+            #self.cursor.execute("""CREATE TABLE reads ( read_id text NOT NULL PRIMARY KEY, 
+            #                                            cell_id text NOT NULL,
+            #                                            sample_name text )
+            #                                             WITHOUT ROWID;""")
+            self.cursor.execute("""CREATE TABLE reads ( read_id text NOT NULL, 
                                                         cell_id text NOT NULL,
-                                                        sample_name text NOT NULL );""")
+                                                        sample_name text NOT NULL )
+                                                         ;""")
         except Exception as e:
             raise DatabaseException("Error while initializing the database.", e)
         else:
             self.commit()
 
     def create_indexes(self):
-        self.cursor.execute("CREATE INDEX idx_cell_id ON reads(cell_id);")
-        self.cursor.execute("CREATE INDEX idx_sample_name ON reads(sample_name);")
+        self.cursor.execute("CREATE INDEX idx_reads_read_id ON reads(read_id);")
+        #self.cursor.execute("CREATE INDEX idx_cell_id ON reads(cell_id);")
+        #self.cursor.execute("CREATE INDEX idx_sample_name ON reads(sample_name);")
+        self.cursor.execute("CREATE INDEX idx_reads_cell_sample ON reads(cell_id, sample_name);")
 
     def process_data(self, threshold):
         self._init_connect()
-        print(f"{get_timestamp()}       Calculating stats on cells")
+        print(f"{get_timestamp()}           Calculating stats on cells")
         self._calculate_stats_on_cells()
-        print(f"{get_timestamp()}       Assigning cells to samples")
+        print(f"{get_timestamp()}           Assigning cells to samples")
         self._assign_cells_to_samples(threshold)
-        print(f"{get_timestamp()}       Creating the final table")
+        print(f"{get_timestamp()}           Creating the final table")
         self._create_final_table()
 
     def _calculate_stats_on_cells(self):
@@ -87,10 +97,10 @@ class SQLReadStorage:
                               END sample FROM
                                 (SELECT cell_id, sample_name,
                                      MAX(abundance) max_abd, SUM(abundance) sum_abd
-                                         FROM cells_stat GROUP BY cell_id); """
-            self.cursor.execute("CREATE INDEX idx_cells_cell_id ON cells(cell_id);")
-            self.cursor.execute("CREATE INDEX idx_cells_sample_name ON cells(sample_name);")
+                                         FROM cells_stat GROUP BY cell_id);"""
             self.cursor.execute(query)
+            self.cursor.execute("CREATE INDEX idx_cells_cell_id ON cells(cell_id);")
+            self.cursor.execute("CREATE INDEX idx_cells_sample_name ON cells(sample);")
         except Exception as e:
             raise DatabaseException("Error while calculating cell-sample relationships.", e)
         else:
@@ -99,9 +109,9 @@ class SQLReadStorage:
     def cleanup(self):
         self._init_connect()
         try:
-            self.cursor.execute("DROP TABLE reads;")
-            self.cursor.execute("DROP TABLE cells;")
-            self.cursor.execute("DROP TABLE cells_stat;")
+            self.cursor.execute("DROP TABLE IF EXISTS reads;")
+            self.cursor.execute("DROP TABLE IF EXISTS cells;")
+            self.cursor.execute("DROP TABLE IF EXISTS cells_stat;")
         except Exception as e:
             raise DatabaseException("Error while deleting the database.", e)
         else:
@@ -143,7 +153,6 @@ class SQLReadStorage:
         return(result)
 
     def store(self, records):
-        print("Saving reads to database.")
         try:
             self.cursor.executemany('INSERT INTO reads VALUES(?,?,?);', records);
             self.commit()
@@ -152,10 +161,12 @@ class SQLReadStorage:
         records.clear()
 
     def commit(self):
-        try:
-            self.connection.commit()
-        except Exception as e:
-            raise DatabaseException("Error while committing changes to the database.", e)
+        pass
+        #try:
+        #    #self.connection.commit()
+        #    self.cursor.execute("COMMIT;")
+        #except Exception as e:
+        #    raise DatabaseException("Error while committing changes to the database.", e)
 
     def close(self):
         if self.connection is not None:
