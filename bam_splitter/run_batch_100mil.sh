@@ -3,7 +3,7 @@
 function clean_out_dir
 {
 	rm -f ${OUTPUT_DIR}/*.fastq.gz
-	#rm -f ${OUTPUT_DIR}/.bamsplitter.db
+	rm -f ${OUTPUT_DIR}/.bamsplitter.db
 }
 
 OUTPUT_DIR="/mnt/documents/demoproj2/output_dir/"

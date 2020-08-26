@@ -150,8 +150,9 @@ class ReadProcessor:
         self.storage.close()
 
     def cleanup(self):
-        print(f"{get_timestamp()}    Deleting temporary files.")
-        self.storage.remove_db()
+        print(f"{get_timestamp()}    Temporary files left! Should be deleted.")
+        #print(f"{get_timestamp()}    Deleting temporary files.")
+        #self.storage.remove_db()
 
     def _save_read_sample_lines(self, reads_buffer, id_sample_pairs):
         for read_id in reads_buffer.keys():
