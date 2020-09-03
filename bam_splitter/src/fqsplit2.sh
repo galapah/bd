@@ -6,8 +6,8 @@
 
 ## TO RUN:
 # this script:
-# ./collect_reads_info.sh -i ../bam/test_bams/test_1000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
-#  time ./collect_reads_info.sh -i bam/original/Combined_A_EKDL200001649-1a_H33W7DSXY_final.BAM -d output
+# ./fqsplit.sh -i ../bam/test_bams/test_1000.bam -d ../output_test -1 ../bam/test_read1.fastq.gz -2 ../bam/test_read2.fastq.gz
+#  time ./fqsplit.sh -i bam/original/Combined_A_EKDL200001649-1a_H33W7DSXY_final.BAM -d output
 
 
 function timestamp
@@ -40,9 +40,9 @@ while getopts "hi:d:1:2:" opt; do
       INPUT_FASTQ_R2=${OPTARG}
       ;;
     h )
-      echo "Usage: ./collect_reads_info.sh -i PATH_TO_BAM_FILE -1 PATH_TO_FASTQ_R1 -2 PATH_TO_FASTQ_R1 [-d OUTPUT_DIRECTORY]"
-      echo "  EXAMPLE: ./collect_reads_info.sh -i bam_folder/Combined_BD-Demo-WTA-SMK_final.BAM -1 fastq/reads1.fastq.gz -2 fastq/reads2.fastq.gz -d results"
-      echo "    collect_reads_info.sh -h                  Display this help message."
+      echo "Usage: ./fqsplit.sh -i PATH_TO_BAM_FILE -1 PATH_TO_FASTQ_R1 -2 PATH_TO_FASTQ_R1 [-d OUTPUT_DIRECTORY]"
+      echo "  EXAMPLE: ./fqsplit.sh -i bam_folder/Combined_BD-Demo-WTA-SMK_final.BAM -1 fastq/reads1.fastq.gz -2 fastq/reads2.fastq.gz -d results"
+      echo "    fqsplit.sh -h                  Display this help message."
       exit 0
       ;;
     \? )
@@ -104,22 +104,22 @@ cd ${OUTPUT_DIR}
 #eval "$(conda shell.bash hook)"
 #conda activate bamsplitter
 
-echo `timestamp`"    Collecting information about the reads..."
-### go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
-###  and extract read_id, cell_id and sample_name
-samtools view ${INPUT_BAM} | grep ".*CN:Z:T.*" | \
-	mawk -f ${WORK_DIR}/extract_fields.mawk | python3 -m cProfile -s cumtime ${WORK_DIR}/main.py -d ${OUTPUT_DIR} build ${DB_FILENAME}
-#
-#exit 0
-#echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
-#
-#
-echo `timestamp`"    Processing the DB - deciding on the sample partitioning..."
-python3 -m cProfile -s cumtime ${WORK_DIR}/main.py -d ${OUTPUT_DIR} "process" ${DB_FILENAME}
-#echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
+#echo `timestamp`"    Collecting information about the reads..."
+#### go through the BAM file and pass down reads from genuine cells (CN tag T[rue])
+####  and extract read_id, cell_id and sample_name
+#samtools view ${INPUT_BAM} | grep ".*CN:Z:T.*" | \
+#	mawk -f ${WORK_DIR}/extract_fields.mawk | ${WORK_DIR}/main.py -d ${OUTPUT_DIR} build ${DB_FILENAME}
+##
+##exit 0
+##echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
+##
+##
+#echo `timestamp`"    Processing the DB - deciding on the sample partitioning..."
+#${WORK_DIR}/main.py -d ${OUTPUT_DIR} "process" ${DB_FILENAME}
+##echo "size of the output dir: " `du -sh ${OUTPUT_DIR} | cut -f1`
 
 echo `timestamp`"    Splitting the file..."
-python3 -m cProfile -s cumtime ${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -d ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
+${WORK_DIR}/main.py -1 ${INPUT_FASTQ_R1} -2 ${INPUT_FASTQ_R2} -d ${OUTPUT_DIR} "retrieve" ${DB_FILENAME}
 
 echo `timestamp`"    DONE"
 
